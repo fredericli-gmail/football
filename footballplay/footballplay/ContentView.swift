@@ -6,16 +6,26 @@
 //
 
 import SwiftUI
+import AVFoundation
 
 struct ContentView: View {
+    @StateObject private var cameraManager = CameraManager()
     @State private var selectedZoom = 1
     private let zoomLevels = ["0.5x", "1x", "2x", "3x"]
     
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .topLeading) {
-                VideoBackdrop()
+                CameraPreviewView(session: cameraManager.session)
                     .ignoresSafeArea()
+                    .overlay(
+                        LinearGradient(
+                            colors: [.black.opacity(0.35), .black.opacity(0.75)],
+                            startPoint: .topLeading,
+                            endPoint: .bottom
+                        )
+                        .ignoresSafeArea()
+                    )
                 
                 ScoreboardView()
                     .padding(.leading, 12)
@@ -23,7 +33,7 @@ struct ContentView: View {
             }
             .overlay(alignment: .trailing) {
                 LiveControlStack()
-                    .padding(.trailing, 8)
+                    .padding(.trailing, -8)
                     .padding(.vertical, 12)
             }
             .safeAreaInset(edge: .bottom) {
