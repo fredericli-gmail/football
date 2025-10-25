@@ -9,7 +9,8 @@ import SwiftUI
 import AVFoundation
 
 struct ContentView: View {
-    @StateObject private var cameraManager = CameraManager()
+    @StateObject private var scoreboard: ScoreboardState
+    @StateObject private var cameraManager: CameraManager
     @State private var selectedZoom = 1
     private let zoomLevels: [ZoomLevel] = [
         .init(label: "0.5x", factor: 0.5),
@@ -18,25 +19,32 @@ struct ContentView: View {
         .init(label: "3x", factor: 3.0)
     ]
     
+    init() {
+        let scoreboard = ScoreboardState()
+        _scoreboard = StateObject(wrappedValue: scoreboard)
+        _cameraManager = StateObject(wrappedValue: CameraManager(scoreboard: scoreboard))
+    }
+    
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .topLeading) {
                 LiveBackground(cameraManager: cameraManager)
                     .ignoresSafeArea()
                 
-                ScoreboardView()
+                ScoreboardView(state: scoreboard)
                     .padding(.leading, 12)
                     .padding(.top, 12)
             }
             .overlay(alignment: .trailing) {
-                LiveControlStack()
+                LiveControlStack(cameraManager: cameraManager)
                     .padding(.trailing, -8)
                     .padding(.vertical, 12)
             }
             .safeAreaInset(edge: .bottom) {
                 ControlDock(
                     zoomLevels: zoomLevels,
-                    selectedZoom: $selectedZoom
+                    selectedZoom: $selectedZoom,
+                    cameraManager: cameraManager
                 )
                 .padding(.horizontal, max(8, proxy.size.width * 0.02))
                 .padding(.vertical, 2)
@@ -57,6 +65,16 @@ struct ContentView: View {
 private struct ZoomLevel {
     let label: String
     let factor: CGFloat
+}
+
+private extension TimeInterval {
+    var formattedTime: String {
+        let total = Int(self)
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let seconds = total % 60
+        return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+    }
 }
 
 // MARK: - Layout Components
@@ -122,11 +140,13 @@ private struct LiveBackground: View {
 }
 
 private struct ScoreboardView: View {
+    @ObservedObject var state: ScoreboardState
+    
     var body: some View {
         HStack(spacing: 6) {
-            ScoreTile(team: "熱血踢球隊", score: "00", color: .blue)
-            SetBadge(set: 1)
-            ScoreTile(team: "TFA 阿寶亮斯", score: "00", color: .green)
+            ScoreTile(team: state.homeTeamName, score: state.homeScore, color: .blue)
+            SetBadge(set: state.currentSet)
+            ScoreTile(team: state.awayTeamName, score: state.awayScore, color: .green)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -141,9 +161,9 @@ private struct ScoreboardView: View {
 
 private struct ScoreTile: View {
     let team: String
-    let score: String
+    let score: Int
     let color: Color
-    
+
     var body: some View {
         VStack(spacing: 6) {
             Text(team)
@@ -152,7 +172,7 @@ private struct ScoreTile: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
                 .background(.white.opacity(0.15), in: Capsule())
-            Text(score)
+            Text(String(format: "%02d", score))
                 .font(.system(size: 18, weight: .heavy, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(.white)
@@ -187,6 +207,7 @@ private struct SetBadge: View {
 private struct ControlDock: View {
     let zoomLevels: [ZoomLevel]
     @Binding var selectedZoom: Int
+    @ObservedObject var cameraManager: CameraManager
     
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -194,7 +215,7 @@ private struct ControlDock: View {
             
             DockDivider(height: 24)
             
-            RecordingPanel()
+            RecordingPanel(manager: cameraManager)
                 .frame(maxWidth: 160)
             
             DockDivider(height: 24)
@@ -238,6 +259,8 @@ private struct ZoomSelector: View {
 }
 
 private struct RecordingPanel: View {
+    @ObservedObject var manager: CameraManager
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("錄影時間")
@@ -245,14 +268,19 @@ private struct RecordingPanel: View {
                 .foregroundStyle(.white.opacity(0.7))
             HStack(spacing: 4) {
                 Image(systemName: "record.circle.fill")
-                    .foregroundStyle(.red)
-                Text("00:00:00")
+                    .foregroundStyle(manager.isRecording ? Color.red : Color.gray)
+                Text(manager.recordingDuration.formattedTime)
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(.white)
             }
             Text("目前：上半場")
                 .font(.caption2)
                 .foregroundStyle(.white.opacity(0.6))
+            if let message = manager.lastSaveMessage {
+                Text(message)
+                    .font(.caption2)
+                    .foregroundColor(.yellow)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
@@ -302,11 +330,25 @@ private struct DockDivider: View {
 }
 
 private struct LiveControlStack: View {
+    @ObservedObject var cameraManager: CameraManager
+    
     var body: some View {
         VStack(spacing: 10) {
-            CaptureButton(icon: "dot.radiowaves.left.and.right", title: "直播", tint: .green, foreground: .white, size: 44)
-            CaptureButton(icon: "record.circle.fill", title: "錄影", tint: .red, foreground: .white, size: 44)
-            CaptureButton(icon: "stop.circle.fill", title: "停止", tint: .gray.opacity(0.5), foreground: .white, size: 44)
+            CaptureButton(icon: "dot.radiowaves.left.and.right", title: "直播", tint: .green, foreground: .white, size: 44) {
+                // TODO: integrate live streaming
+            }
+            CaptureButton(icon: cameraManager.isRecording ? "pause.circle.fill" : "record.circle.fill",
+                           title: cameraManager.isRecording ? "錄影中" : "錄影",
+                           tint: cameraManager.isRecording ? .red : .red,
+                           foreground: .white,
+                           size: 44) {
+                if !cameraManager.isRecording {
+                    cameraManager.startRecording()
+                }
+            }
+            CaptureButton(icon: "stop.circle.fill", title: "停止", tint: .gray.opacity(0.5), foreground: .white, size: 44) {
+                cameraManager.stopRecording()
+            }
         }
         .padding(.vertical, 16)
         .padding(.horizontal, 8)
@@ -325,12 +367,11 @@ private struct CaptureButton: View {
     let tint: Color
     let foreground: Color
     var size: CGFloat = 72
+    var action: () -> Void
     
     var body: some View {
         VStack(spacing: 6) {
-            Button {
-                // Placeholder
-            } label: {
+            Button(action: action) {
                 Image(systemName: icon)
                     .font(.title3)
                     .foregroundStyle(foreground)

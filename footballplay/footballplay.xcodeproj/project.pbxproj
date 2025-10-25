@@ -400,9 +400,11 @@
 				DEVELOPMENT_TEAM = 54A894F5RD;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "App needs camera access to capture live football video.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "App saves recorded matches to your photo library.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "App uses the microphone to capture match audio while recording.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "App needs camera access to capture live football video.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -437,9 +439,11 @@
 				DEVELOPMENT_TEAM = 54A894F5RD;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "App needs camera access to capture live football video.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "App saves recorded matches to your photo library.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "App uses the microphone to capture match audio while recording.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "App needs camera access to capture live football video.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
