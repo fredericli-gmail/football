@@ -11,7 +11,12 @@ import AVFoundation
 struct ContentView: View {
     @StateObject private var cameraManager = CameraManager()
     @State private var selectedZoom = 1
-    private let zoomLevels = ["0.5x", "1x", "2x", "3x"]
+    private let zoomLevels: [ZoomLevel] = [
+        .init(label: "0.5x", factor: 0.5),
+        .init(label: "1x", factor: 1.0),
+        .init(label: "2x", factor: 2.0),
+        .init(label: "3x", factor: 3.0)
+    ]
     
     var body: some View {
         GeometryReader { proxy in
@@ -38,7 +43,20 @@ struct ContentView: View {
                 .background(Color.clear)
             }
         }
+        .onChange(of: selectedZoom) { newValue in
+            cameraManager.setZoom(factor: zoomLevels[newValue].factor)
+        }
+        .onChange(of: cameraManager.isConfigured) { ready in
+            if ready {
+                cameraManager.setZoom(factor: zoomLevels[selectedZoom].factor)
+            }
+        }
     }
+}
+
+private struct ZoomLevel {
+    let label: String
+    let factor: CGFloat
 }
 
 // MARK: - Layout Components
@@ -167,7 +185,7 @@ private struct SetBadge: View {
 }
 
 private struct ControlDock: View {
-    let zoomLevels: [String]
+    let zoomLevels: [ZoomLevel]
     @Binding var selectedZoom: Int
     
     var body: some View {
@@ -194,16 +212,16 @@ private struct ControlDock: View {
 }
 
 private struct ZoomSelector: View {
-    let levels: [String]
+    let levels: [ZoomLevel]
     @Binding var selectedZoom: Int
     
     var body: some View {
         HStack(spacing: 6) {
-            ForEach(Array(levels.enumerated()), id: \.offset) { index, label in
+            ForEach(Array(levels.enumerated()), id: \.offset) { index, level in
                 Button {
                     selectedZoom = index
                 } label: {
-                    Text(label)
+                    Text(level.label)
                         .font(.caption)
                         .fontWeight(index == selectedZoom ? .bold : .medium)
                         .foregroundStyle(index == selectedZoom ? Color.yellow : Color.white)
