@@ -141,12 +141,26 @@ private struct LiveBackground: View {
 
 private struct ScoreboardView: View {
     @ObservedObject var state: ScoreboardState
+    @State private var editTarget: EditTarget?
+    @State private var inputValue = ""
     
     var body: some View {
-        HStack(spacing: 6) {
-            ScoreTile(team: state.homeTeamName, score: state.homeScore, color: .blue)
-            SetBadge(set: state.currentSet)
-            ScoreTile(team: state.awayTeamName, score: state.awayScore, color: .green)
+        HStack(spacing: 10) {
+            ScoreTile(team: state.homeTeamName,
+                      score: state.homeScore,
+                      color: .blue,
+                      onTap: { state.homeScore += 1 },
+                      onLongPressName: { beginEditing(.homeName) },
+                      onLongPressScore: { beginEditing(.homeScore) })
+            SetBadge(set: state.currentSet,
+                     onTap: { state.currentSet += 1 },
+                     onLongPress: { beginEditing(.set) })
+            ScoreTile(team: state.awayTeamName,
+                      score: state.awayScore,
+                      color: .green,
+                      onTap: { state.awayScore += 1 },
+                      onLongPressName: { beginEditing(.awayName) },
+                      onLongPressScore: { beginEditing(.awayScore) })
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -156,6 +170,35 @@ private struct ScoreboardView: View {
                 .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
         )
         .scaleEffect(1.25, anchor: .topLeading)
+        .sheet(item: $editTarget) { target in
+            ScoreboardEditSheet(target: target,
+                                inputValue: inputBinding,
+                                onSave: applyEdit)
+        }
+    }
+    
+    private var inputBinding: Binding<String> {
+        Binding(get: { inputValue }, set: { inputValue = $0 })
+    }
+    
+    private func beginEditing(_ target: EditTarget) {
+        inputValue = target.currentValue(from: state)
+        editTarget = target
+    }
+    
+    private func applyEdit(for target: EditTarget) {
+        switch target {
+        case .homeName:
+            state.homeTeamName = inputValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .awayName:
+            state.awayTeamName = inputValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .homeScore:
+            if let value = Int(inputValue) { state.homeScore = max(0, value) }
+        case .awayScore:
+            if let value = Int(inputValue) { state.awayScore = max(0, value) }
+        case .set:
+            if let value = Int(inputValue) { state.currentSet = max(1, value) }
+        }
     }
 }
 
@@ -163,7 +206,10 @@ private struct ScoreTile: View {
     let team: String
     let score: Int
     let color: Color
-
+    var onTap: () -> Void
+    var onLongPressName: () -> Void
+    var onLongPressScore: () -> Void
+    
     var body: some View {
         VStack(spacing: 6) {
             Text(team)
@@ -172,6 +218,7 @@ private struct ScoreTile: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
                 .background(.white.opacity(0.15), in: Capsule())
+                .onLongPressGesture(perform: onLongPressName)
             Text(String(format: "%02d", score))
                 .font(.system(size: 18, weight: .heavy, design: .rounded))
                 .monospacedDigit()
@@ -180,12 +227,16 @@ private struct ScoreTile: View {
                 .background(
                     RoundedRectangle(cornerRadius: 8).fill(color.opacity(0.9))
                 )
+                .onTapGesture(perform: onTap)
+                .onLongPressGesture(perform: onLongPressScore)
         }
     }
 }
 
 private struct SetBadge: View {
     let set: Int
+    var onTap: () -> Void
+    var onLongPress: () -> Void
     
     var body: some View {
         VStack(spacing: 4) {
@@ -201,6 +252,80 @@ private struct SetBadge: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(.gray.opacity(0.4))
         )
+        .onTapGesture(perform: onTap)
+        .onLongPressGesture(perform: onLongPress)
+    }
+}
+
+private enum EditTarget: Identifiable {
+    case homeName, awayName, homeScore, awayScore, set
+    var id: String {
+        switch self {
+        case .homeName: return "homeName"
+        case .awayName: return "awayName"
+        case .homeScore: return "homeScore"
+        case .awayScore: return "awayScore"
+        case .set: return "set"
+        }
+    }
+    
+    var title: String {
+        switch self {
+        case .homeName: return "編輯主隊名稱"
+        case .awayName: return "編輯客隊名稱"
+        case .homeScore: return "設定主隊分數"
+        case .awayScore: return "設定客隊分數"
+        case .set: return "設定場次"
+        }
+    }
+    
+    var keyboard: UIKeyboardType {
+        switch self {
+        case .homeName, .awayName:
+            return .default
+        case .homeScore, .awayScore, .set:
+            return .numberPad
+        }
+    }
+    
+    func currentValue(from state: ScoreboardState) -> String {
+        switch self {
+        case .homeName: return state.homeTeamName
+        case .awayName: return state.awayTeamName
+        case .homeScore: return String(state.homeScore)
+        case .awayScore: return String(state.awayScore)
+        case .set: return String(state.currentSet)
+        }
+    }
+}
+
+private struct ScoreboardEditSheet: View {
+    let target: EditTarget
+    @Binding var inputValue: String
+    var onSave: (EditTarget) -> Void
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text(target.title)) {
+                    TextField("輸入值", text: $inputValue)
+                        .keyboardType(target.keyboard)
+                }
+            }
+            .navigationTitle("編輯比分")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("儲存") {
+                        onSave(target)
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }
 
