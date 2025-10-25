@@ -16,16 +16,8 @@ struct ContentView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .topLeading) {
-                CameraPreviewView(session: cameraManager.session)
+                LiveBackground(cameraManager: cameraManager)
                     .ignoresSafeArea()
-                    .overlay(
-                        LinearGradient(
-                            colors: [.black.opacity(0.35), .black.opacity(0.75)],
-                            startPoint: .topLeading,
-                            endPoint: .bottom
-                        )
-                        .ignoresSafeArea()
-                    )
                 
                 ScoreboardView()
                     .padding(.leading, 12)
@@ -58,6 +50,56 @@ private struct VideoBackdrop: View {
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
+    }
+}
+
+private struct LiveBackground: View {
+    @ObservedObject var cameraManager: CameraManager
+    
+    var body: some View {
+        #if targetEnvironment(simulator)
+        fallbackView(message: "Simulator 不支援實際鏡頭。請於真機查看直播畫面")
+        #else
+        switch cameraManager.authorizationStatus {
+        case .authorized:
+            if cameraManager.isConfigured {
+                CameraPreviewView(session: cameraManager.session)
+                    .overlay(gradientOverlay)
+            } else {
+                fallbackView(message: "正在啟動鏡頭...")
+            }
+        case .denied, .restricted:
+            fallbackView(message: "請在設定中允許相機權限。")
+        case .notDetermined:
+            fallbackView(message: "等待相機授權...")
+        @unknown default:
+            fallbackView(message: "相機狀態未知")
+        }
+        #endif
+    }
+    
+    private var gradientOverlay: some View {
+        LinearGradient(
+            colors: [.black.opacity(0.15), .black.opacity(0.4)],
+            startPoint: .topLeading,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
+    }
+    
+    @ViewBuilder
+    private func fallbackView(message: String) -> some View {
+        VideoBackdrop()
+            .overlay(
+                VStack(spacing: 8) {
+                    ProgressView()
+                        .tint(.white)
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(.white)
+                }
+                .padding(24), alignment: .center
+            )
     }
 }
 

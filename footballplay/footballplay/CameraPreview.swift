@@ -5,6 +5,7 @@ import Combine
 final class CameraManager: NSObject, ObservableObject {
     let session = AVCaptureSession()
     @Published var isConfigured = false
+    @Published var authorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
     private let sessionQueue = DispatchQueue(label: "camera.session.queue")
     
     override init() {
@@ -13,15 +14,16 @@ final class CameraManager: NSObject, ObservableObject {
     }
     
     private func requestAccessIfNeeded() {
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        switch authorizationStatus {
         case .authorized:
             configureSession()
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
                 guard let self else { return }
-                if granted {
-                    self.configureSession()
+                DispatchQueue.main.async {
+                    self.authorizationStatus = granted ? .authorized : .denied
                 }
+                if granted { self.configureSession() }
             }
         default:
             break
@@ -33,7 +35,15 @@ final class CameraManager: NSObject, ObservableObject {
             guard let self else { return }
             self.session.beginConfiguration()
             self.session.sessionPreset = .hd1280x720
-            defer { self.session.commitConfiguration() }
+            defer {
+                self.session.commitConfiguration()
+                DispatchQueue.main.async {
+                    self.isConfigured = true
+                }
+                if !self.session.isRunning {
+                    self.session.startRunning()
+                }
+            }
             
             // Remove existing inputs
             self.session.inputs.forEach { input in
@@ -47,9 +57,6 @@ final class CameraManager: NSObject, ObservableObject {
             if self.session.canAddInput(deviceInput) {
                 self.session.addInput(deviceInput)
             }
-            
-            self.isConfigured = true
-            self.session.startRunning()
         }
     }
 }
@@ -61,10 +68,17 @@ struct CameraPreviewView: UIViewRepresentable {
         let view = PreviewView()
         view.videoPreviewLayer.session = session
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
+        if let connection = view.videoPreviewLayer.connection, connection.isVideoOrientationSupported {
+            connection.videoOrientation = .landscapeRight
+        }
         return view
     }
     
-    func updateUIView(_ uiView: PreviewView, context: Context) {}
+    func updateUIView(_ uiView: PreviewView, context: Context) {
+        if let connection = uiView.videoPreviewLayer.connection, connection.isVideoOrientationSupported {
+            connection.videoOrientation = .landscapeRight
+        }
+    }
 }
 
 final class PreviewView: UIView {
